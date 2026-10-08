@@ -23,3 +23,8 @@ coverage/
 # Ignore operating system files
 .DS_Store
 Thumbs.db
+
+# 12-factor config: keep real environment files out of Git
+.env
+.env.*
+!.env.example
