@@ -1,57 +1,35 @@
 # Order Service
 
-The Order Service is a backend service that receives orders from the store-front and sends these orders to a RabbitMQ message queue. It enables decoupling of the order processing logic from the product service, allowing for more scalable and maintainable architecture.
+Part of the Algonquin Pet Store (CST8915). The order-service is a Node.js/Express API that takes orders from the store-front and publishes them to RabbitMQ (`order_queue`, durable, persistent messages with publisher confirms). It only reports `Order received` after RabbitMQ confirms the message.
 
-## Requirements
+## Configuration (12-Factor: Config, Backing services)
 
-- Node.js 24 LTS and npm, installed below
-- RabbitMQ running on the same VM or local machine
-- Start inside the repository's `order-service` directory. The main guide already takes you there.
+Everything that changes between environments comes from environment variables. `dotenv` loads a local `.env` file when one exists, and real environment variables always win.
 
-## Setup Instructions
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `RABBITMQ_CONNECTION_STRING` | AMQP URL of the RabbitMQ broker, e.g. `amqp://orderapp:<password>@<host>:5672/` | `amqp://localhost` |
+| `PORT` | Port the API listens on | `3000` |
 
-1. Update the package list and add the NodeSource repository for Node.js 24:
+Copy `.env.example` to `.env` for local runs. `.env` is ignored by Git, so credentials never end up in the repo.
 
-   ```bash
-   sudo apt update
-   curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
-   ```
+## Run locally
 
-2. Install Node.js and its bundled npm:
+```bash
+npm ci
+node index.js
+```
 
-   ```bash
-   sudo apt install -y nodejs
-   node --version
-   npm --version
-   ```
-
-   Node.js should report `v24.x`. Use this same runtime for the Store Front. [Node.js release schedule](https://nodejs.org/en/about/previous-releases)
-
-3. Install the versions recorded in the committed lockfile:
-
-   ```bash
-   npm ci
-   ```
-
-4. Start the service:
-
-   ```bash
-   node index.js
-   ```
-
-   Expect `Order service is running on http://localhost:3000`. Keep this terminal open; do not start a second copy from the main guide.
-
-The service listens on port 3000 on all interfaces. On the VM, send requests to `http://localhost:3000/orders`. From your laptop, use `http://<VM-PUBLIC-IP>:3000/orders` with port 3000 allowed by the NSG. VS Code port forwarding is an optional alternative for accessing a forwarded port through your laptop's localhost.
-
-## Testing
-
-From another terminal, use the VS Code **REST Client** extension with `test-order-service.http`, or run:
+Then send a test order (or use `test-order-service.http` with the VS Code REST Client):
 
 ```bash
 curl -i -X POST http://localhost:3000/orders \
   -H 'Content-Type: application/json' \
-  -d '{"product":"Cat Food"}'
-sudo rabbitmqctl list_queues name durable messages
+  -d '{"product":{"id":1,"name":"Dog Food","price":19.99},"quantity":2,"totalPrice":39.98}'
 ```
 
-Expect HTTP 200 with `Order received` and an increased count in the durable `order_queue`. The service waits for RabbitMQ to confirm a persistent, routable message before reporting success, then closes the request's connection. Orders are accepted and queued; this lab has no consumer that fulfills them.
+The broker-failure tests in `test/` run without a live RabbitMQ server: `node --test`.
+
+## Azure App Service (Lab 3)
+
+Deployed to the Linux Web App `order-service-app-aa` (Node 24 LTS). App Service starts it with `node index.js` (the `main` entry) and passes its own `PORT`, so the only app setting needed is `RABBITMQ_CONNECTION_STRING`, which points at the RabbitMQ VM.
